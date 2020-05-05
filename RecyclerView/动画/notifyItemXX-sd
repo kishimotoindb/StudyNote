@@ -1,0 +1,48 @@
+@startuml
+
+title **动画流程第一步：notifyItemXX 顺序图**
+
+participant RecyclerView.Adapter as adapter
+participant AdapterDataObservable as observable
+participant RecyclerViewDataObserver as observer
+participant AdapterHelper
+participant "mPendingUpdates:ArrayList" as mPendingUpdates
+participant RecyclerView
+
+hide footbox
+
+->adapter: notifyItemXX\(int position)\n/ notifyItemRangeXX(positionStart,itemCount)
+activate adapter
+adapter->observable: ∂notifyItemRangeXX(positionStart,itemCount)
+activate observable
+observable->observer:onItemRangeXX(positionStart,itemCount)
+activate observer
+observer->AdapterHelper:onItemRangeXX(positionStart,itemCount)
+activate AdapterHelper
+
+alt notifyItemInserted/ notifyItemRangeInserted
+    AdapterHelper->AdapterHelper++: obtainUpdateOp(Op.Add,positionStart,itemCount,null)
+    deactivate AdapterHelper
+else notifyItemRemoved/ notifyItemRangeRemoved
+    AdapterHelper->AdapterHelper++: obtainUpdateOp(Op.Remove,positionStart,itemCount,null)
+    deactivate AdapterHelper
+else if notifyItemChanged/ notifyItemRangeChanged
+    AdapterHelper->AdapterHelper++: obtainUpdateOp(Op.Update,positionStart,itemCount,null)
+    deactivate AdapterHelper
+else if notifyItemMoved
+    AdapterHelper->AdapterHelper++: obtainUpdateOp(Op.Move,positionStart,itemCount,null)
+    deactivate AdapterHelper
+end
+
+observer->observer++: [mPendingUpdates.size==1] \n triggerUpdateProcessor()
+observer->RecyclerView++: requestLayout()
+
+deactivate RecyclerView
+deactivate observer
+deactivate observable
+deactivate adapter
+
+
+
+
+@enduml

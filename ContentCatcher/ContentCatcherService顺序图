@@ -1,0 +1,16 @@
+@startuml
+
+actor system as sys
+participant ContentCatcherService as svc
+participant DataHub
+participant CloudSyncManager as syncMgr
+participant ConfigHelper
+
+sys -> svc: start
+activate svc
+svc->DataHub: getInstance
+
+
+
+
+@enduml

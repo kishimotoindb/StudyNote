@@ -1,0 +1,21 @@
+@startuml
+
+participant RecyclerView 
+participant SimleItemAnimator
+
+RecyclerView->SimleItemAnimator:animatePersistence(holder,preLayoutInfo,postLayoutInfo)
+activate SimleItemAnimator
+
+alt preInfo.left != postInfo.left || preInfo.top != postInfo.top
+    SimleItemAnimator->SimleItemAnimator:animateMove(viewHolder, preLayoutInfo.left, \npreLayoutInfo.top,postLayoutInfo.left, postLayoutInfo.top)
+    activate SimleItemAnimator
+    deactivate SimleItemAnimator
+else 
+    SimleItemAnimator->SimleItemAnimator:dispatchMoveFinished(viewHolder)
+    activate SimleItemAnimator
+    deactivate SimleItemAnimator
+end
+
+deactivate SimleItemAnimator
+
+@enduml

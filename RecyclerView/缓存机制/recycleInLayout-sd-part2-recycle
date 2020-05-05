@@ -1,0 +1,100 @@
+@startuml
+
+title <font size=25> Recycle缓冲池的回收机制</font>
+hide footbox
+header recycleInLayout
+footer Page 2
+
+participant Recycler as bin
+
+box Recycler #LightBlue
+participant "mCachedViews:ArrayList<View>" as mCachedViews
+participant ViewCacheExtension
+participant RecycledViewPool as pool
+end box
+
+box RecycledViewPool #LightGreen
+participant "mScrap:SparseArray<ArrayList<ViewHolder>>" as heap
+end box
+
+participant RecyclerListener
+participant Adapter
+participant "mState:RecyclerView::State" as state
+participant ViewHolder
+participant RecyclerView as list
+
+-> bin : recycleViewHolderInternal(ViewHolder)
+activate bin
+note over bin
+    在layoutChildren()流程开始时，因为只有invalid
+    的holder才会被recycle，而recycle的过程中如果
+    invalid就不会被放到mCachedViews中，所以holder
+    直接执行下面加入到pool的流程
+end note
+
+bin->bin++: addViewHolderToRecycledViewPool(ViewHolder)
+bin->bin++: dispatchViewRecycled(ViewHolder)
+note right of bin
+    dispatchViewRecycled()只会在ViewHolder
+    被放入RecycledViewPool的时候才会被调用
+end note
+
+bin->RecyclerListener++: [registered] onViewRecycled(ViewHolder)
+note right of RecyclerListener
+    可以通过RecyclerView注册，实现自定义逻辑。
+    并且只有在holder被回收到RecycledViewPool
+    的时候才会回调。
+end note
+deactivate RecyclerListener
+
+bin->Adapter++: [registered] onViewRecycled(ViewHolder)
+note right of Adapter
+    可以重写，实现自定义逻辑。并且只有在
+    holder被回收到RecycledViewPool
+    的时候才会回调。
+end note
+deactivate Adapter
+
+bin->state++: [state!=null] onViewRecycled(ViewHolder)
+state->RecyclerView: do something
+note right of state
+    包权限，无法自定义操作。在多个场景下
+    会回调。
+end note
+deactivate state
+
+note over RecyclerListener,Adapter
+可以通过各自的onViewRecycled(ViewHolder)，
+监听holder是否被回收到了RecycledViewPool
+中。
+end note
+
+bin->ViewHolder: set mOwnerRecyclerView to null
+
+bin->pool++: putRecycledView(ViewHolder)
+pool->ViewHolder: getItemViewType()
+pool->heap++:getScrapHeapForType(viewType)
+return List<View> for specific type
+
+pool->ViewHolder: resetInternal()
+note over ViewHolder
+    holder在放入RecycledViewPool之前，会将所有的状态都进行重置，
+    所以说这里也印证了之前的观点，只有recyclerView认为这个holder
+    与新数据无法建立联系，这个holder才会被recycle。同时，被
+    recycle的holder所有状态都失效了，下次重新绑定的时候重新配置
+    新的状态。下面是重置的状态：
+    mFlags = 0;
+    mPosition = NO_POSITION;
+    mOldPosition = NO_POSITION;
+    mItemId = NO_ID;
+    mPreLayoutPosition = NO_POSITION;
+    mIsRecyclableCount = 0;
+    mShadowedHolder = null;
+    mShadowingHolder = null;
+    clearPayload();
+end note
+
+pool->heap++: add(ViewHolder) to List<View> (即放入heap中)
+
+
+@enduml

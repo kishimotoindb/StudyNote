@@ -1,0 +1,12 @@
+@startuml
+
+title **AnchorInfo的计算过程**
+
+hide footbox
+
+participant LinearLayoutManager
+
+LinearLayoutManager->LinearLayoutManager
+
+
+@enduml

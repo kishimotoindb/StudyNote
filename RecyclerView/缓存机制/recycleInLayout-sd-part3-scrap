@@ -1,0 +1,28 @@
+@startuml
+
+title <font size=25> Scrap缓冲池的回收机制</font>
+hide footbox
+
+header recycleInLayout
+footer Page 3
+
+participant Recycler as bin
+participant "mAttachedScrap: List<View>" as mAttachedScrap
+participant "mChangedScrap: List<View>" as mChangedScrap
+participant RecyclerView as list
+
+->bin: scrapView(View)
+activate bin
+bin->list++: getChildViewHolderInt(View)
+note left of list
+    holder被保存view的LayoutParam里
+end note
+return ViewHolder
+
+alt !holder.isChanged() || !supportsChangeAnimations()
+    bin->mAttachedScrap: add
+else 
+    bin->mChangedScrap: add
+end
+
+@enduml

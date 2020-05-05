@@ -1,0 +1,12 @@
+@startuml
+
+participant RecyclerView 
+participant SimleItemAnimator
+
+RecyclerView->SimleItemAnimator:animateChange(oldHolder,newHolder,preLayoutInfo,postLayoutInfo)
+activate SimleItemAnimator
+SimleItemAnimator->SimleItemAnimator:animateChange(oldHolder, newHolder, fromLeft, fromTop, toLeft, toTop)
+activate SimleItemAnimator
+deactivate SimleItemAnimator
+deactivate SimleItemAnimator
+@enduml

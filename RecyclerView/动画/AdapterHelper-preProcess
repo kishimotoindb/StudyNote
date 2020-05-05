@@ -1,0 +1,101 @@
+@startuml
+
+title AdapterHelper的preProcess流程
+
+participant RecyclerView 
+participant ViewHolder
+participant AdapterHelper
+participant OpReorderer
+participant LayoutManager
+
+->RecyclerView: onLayout()
+activate RecyclerView
+RecyclerView->RecyclerView: dispatchLayout()
+activate RecyclerView
+RecyclerView->RecyclerView: processAdapterUpdatesAndSetAnimationFlags()
+activate RecyclerView
+RecyclerView->AdapterHelper: preProcess()
+activate AdapterHelper
+AdapterHelper->OpReorderer:reorderOps(mPendingUpdates)
+note right: 1.since move operations breaks continuity,\n their effects on ADD/RM are hard to handle.\n we push them to the end of the list so that\n they can be handled easily.\n 2.这里只是改变mPendingUpdates中Op的顺序而已
+activate OpReorderer
+loop exist move before add or remove
+    OpReorderer->OpReorderer: swapMoveOp
+end
+deactivate OpReorderer
+
+loop mPendingUpdates.size
+    alt add
+        AdapterHelper->AdapterHelper: applyAdd(Op)
+        activate AdapterHelper
+        AdapterHelper->AdapterHelper: postponeAndUpdateViewHolders(op)
+        activate AdapterHelper
+        AdapterHelper->AdapterHelper: mPostponedList.add(op)
+        AdapterHelper->RecyclerView: offsetPositionRecordsForInsert(positionStart,itemCount)
+        activate RecyclerView
+        loop unfilterChildCount
+            RecyclerView->ViewHolder:offsetPosition(offset,applyToPreLayout)
+            note right: ViewHolder中的mPosition设置为\n与当前adapter中最新数据顺序对应\n的位置。这个pos是直接根据adapter\n的变化差量数据mPendingUpdates\n中的数据进行更新的
+        end
+        deactivate RecyclerView
+        deactivate AdapterHelper
+        deactivate AdapterHelper
+    else remove
+        AdapterHelper->AdapterHelper: applyRemove(Op)
+        activate AdapterHelper
+        AdapterHelper->AdapterHelper: postponeAndUpdateViewHolders(op)
+        note left: if分支暂未表现在图中，这里还可能执行dispatchAndUpdateViewHolders(Op)
+        activate AdapterHelper
+        AdapterHelper->AdapterHelper: mPostponedList.add(op)
+        AdapterHelper->RecyclerView: offsetPositionRecordsForRemove(positionStart,itemCount)
+        activate RecyclerView
+        loop unfilterChildCount
+            RecyclerView->ViewHolder:offsetPosition(offset,false)
+            note right: 同insert
+        end
+        deactivate RecyclerView
+        deactivate AdapterHelper
+        deactivate AdapterHelper
+    else udpate
+        AdapterHelper->AdapterHelper: applyUpdate(Op)
+        activate AdapterHelper
+        AdapterHelper->AdapterHelper: postponeAndUpdateViewHolders(op)
+        note left: if分支暂未表现在图中，这里还可能执行dispatchAndUpdateViewHolders(Op)
+        activate AdapterHelper
+        AdapterHelper->AdapterHelper: mPostponedList.add(op)
+        AdapterHelper->RecyclerView: viewRangeUpdate(positionStart,itemCount)
+        activate RecyclerView
+        loop unfilterChildCount
+            RecyclerView->ViewHolder:addFlags(ViewHolder.FLAG_UPDATE)
+            note right: 同insert
+        end
+        deactivate RecyclerView
+        deactivate AdapterHelper
+        deactivate AdapterHelper
+    else move
+        AdapterHelper->AdapterHelper: applyMove(Op)
+        activate AdapterHelper
+        AdapterHelper->AdapterHelper: postponeAndUpdateViewHolders(op)
+        activate AdapterHelper
+        AdapterHelper->AdapterHelper: mPostponedList.add(op)
+        AdapterHelper->RecyclerView: offsetPositionRecordsForMove(from,to)
+        activate RecyclerView
+        loop unfilterChildCount
+            RecyclerView->ViewHolder:offsetPosition(offset,false)
+            note right: 同insert
+        end
+        deactivate RecyclerView
+        deactivate AdapterHelper
+        deactivate AdapterHelper
+    end
+end
+AdapterHelper->AdapterHelper: mPendingUpdates.clear()
+note right: 1.执行到这里，op都都被放到了mPostponeList中 \n ViewHolder的flags和mPosition已经更新完成
+deactivate AdapterHelper
+deactivate RecyclerView
+deactivate RecyclerView
+deactivate RecyclerView
+
+
+
+@enduml

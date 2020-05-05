@@ -1,0 +1,112 @@
+@startuml
+title <font size=30 color=red>**layoutChildren开始时对View的回收流程(第一部分)**</font>
+
+hide footbox
+header recycleInLayout
+footer Page 1
+
+participant RecyclerView as list
+participant "ChildHelper::Callback" as cb
+participant LinearLayoutManager
+participant ChildHelper
+participant "mHiddenViews:List<View>" as hiddenViews
+participant Recycler as bin
+
+
+->list: onLayout()
+activate list
+list->list++:dispatchLayout()
+list->LinearLayoutManager++: onLayoutChildren(mRecycler,mState)
+LinearLayoutManager->LinearLayoutManager++:detachAndScrapAttachedViews(recycler)
+LinearLayoutManager->LinearLayoutManager++:getChildCount()
+LinearLayoutManager->ChildHelper++:getChildCount()
+ChildHelper->cb++:getChildCount()
+cb->list++: getChildCount()
+return  actual children count: \n RecyclerView中mChildren\n 的length
+return actual children count
+ChildHelper->hiddenViews++: size()
+return hidden children count
+return children count - hidden children count
+note over LinearLayoutManager
+    从这里来看，在回收屏幕中的view时，
+    也只是针对可见的部分做了处理，并
+    不会回收hidden view（ChildHelper
+    中mHiddenViews里保存的view）
+
+end note
+
+loop visible children count
+    note over LinearLayoutManager
+        index 指的是 child 在 visible children 中的索引
+    end note
+
+    LinearLayoutManager->LinearLayoutManager++:getChildAt(index)
+    LinearLayoutManager->ChildHelper++:getChildAt(index)
+    ChildHelper->ChildHelper++:getOffset(index)
+    note right of ChildHelper
+        getOffset(index)负责将view在可见
+        children中的位置索引转换到在
+        RecyclerView的mChildren中的索引
+    end note
+    
+    return actualIndex: child index in mChildren[]
+    ChildHelper->cb++:getChildAt(actualIndex)
+    cb->list++:getChildAt(actualIndex)
+    return child（visible child on the screen）
+    return child
+    return child
+    return child
+    
+    LinearLayoutManager->LinearLayoutManager++: scrapOrRecycleView(recycler,index,child)
+    note over LinearLayoutManager
+        传入的index仍然是child在visible children中的索引
+    end note
+
+    LinearLayoutManager->LinearLayoutManager++: getChildViewHolderInt(view)
+    return viewHolder
+
+    alt viewHolder.isInvalid() && !viewHolder.isRemoved() && !viewHolder.isChanged() &&\n !mRecyclerView.mAdapter.hasStableIds()
+        LinearLayoutManager->LinearLayoutManager: removeViewAt(index)
+        LinearLayoutManager->bin:recycleViewHolderInternal(<font color="#ff0000">**viewHolder**</font>)
+        ref over bin    
+            Recycle流程：mCacheViews and mViewCacheExtension and mRecyclerPool
+        end
+    else
+        LinearLayoutManager->LinearLayoutManager: detachViewAt(index);
+        LinearLayoutManager->bin: scrapView(<font color="#ff0000">**view**</font>);
+        ref over bin
+            Scrap流程: mAttachedScrap and mChangeScrap
+        end
+    end
+end
+
+note over LinearLayoutManager
+    RecyclerView的缓存机制里，缓存池虽然有五个，但这个五个缓存池并不是并列的关系，Recycler对这五个缓存池进行了
+    分类。其中 mAttachedScrap 和 mChangeScrap 为一组，使用的是”scrap“的概念。然后剩下的 mCacheViews、
+    mViewCacheExtension 和 mRecyclerPool 是一组，使用的是”recycle“的概念。
+    
+    关于scrap和recycle这两个概念的详细分析，包括与ListView中scrap概念的区别等，详见缓存机制分析文章。这里仅
+    强调一点，就是scrap的view只是detach，而recycle会把view从parent中remove。
+      
+    1.什么样的ViewHolder会被recycle？
+      对判断条件一一做分析：
+      1）invalid：当调用notifyDataSetChanged()的时候，所有的viewHolder都会被设置为invalid。从这个条件来看，
+                 如果RecyclerView认为这个ViewHolder和adatper中新的数据已经完全找不到对应关系了，就会将其进行
+                 recycle处理。
+      2）!isRemoved: 调用了notifyItemRemoved()等相应的方法，holder会被标记为removed。这种holder是需要执行
+                     动画的，所以在当次的layout过程中需要立马复用，所以不应该被recycle。
+      3）!isChanged: 同remove。
+      4）!hasStableIds: 如果有stable id，holder和数据有明确的对应关系，就不会使用recycle的缓存池。一般有stable
+
+      所以从概念上来说，会被放入recycle的缓存池组合中的holder，是在adapter数据更新后，新的数据展示到屏幕上之前，
+      与新的数据没有明确的对应关系的holder，并且这些holder不需要执行动画。
+
+      另外注意一点，在当前流程中，view并不会被回收到mCachedViews中。因为recycleViewHolderInternal()中如果
+      一个holder是invalid的，就不会被放到mCachedViews中。
+
+    2.什么样的viewHolder会被scrap？
+      从对recycle概念的分析来看，放入scrap的holder有两类，一类是需要动画的holder，另一类就是与新数据有明显的对应
+      关系的。
+end note
+
+@enduml

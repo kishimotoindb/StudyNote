@@ -1,0 +1,10 @@
+@startuml
+
+participant CloudSyncJobService as job
+participant CloudSyncHelper as helper
+
+-> job: 12~14小时触发一次
+job->helper:requestCloudConfigs
+activate helper
+
+@enduml
